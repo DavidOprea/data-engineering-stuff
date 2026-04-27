@@ -6,11 +6,6 @@ ENV PATH="/code/.venv/bin:$PATH"
 
 COPY pyproject.toml .python-version uv.lock ./
 
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN uv sync --locked
 
 COPY ingest_data.py .

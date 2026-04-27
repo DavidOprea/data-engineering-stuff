@@ -32,7 +32,7 @@ parse_dates = [
 
 @click.command()
 @click.option('--pg-user', default='root', help='PostgreSQL user')
-@click.option('--pg-password', default='root', help='PostgreSQL password')
+@click.option('--pg-pass', default='root', help='PostgreSQL password')
 @click.option('--pg-host', default='localhost', help='PostgreSQL host')
 @click.option('--pg-port', type=int, default=5432, help='PostgreSQL port')
 @click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
@@ -40,31 +40,35 @@ parse_dates = [
 @click.option('--month', type=int, default=1, help='Month of data to ingest')
 @click.option('--chunksize', type=int, default=100000, help='Chunk size for reading CSV')
 @click.option('--target-table', default='yellow_taxi_data', help='Target table name')
-def run(pg_user, pg_password, pg_host, pg_port, pg_db, year, month, chunksize, target_table):
+@click.option('--url', default='https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2021-01.parquet', help='URL of the Parquet file to ingest')
+@click.option('--file_type', default='parquet', help='Type of the file to ingest (csv or parquet)')
+def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, chunksize, target_table, url, file_type):
 
-    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-    url = f'{prefix}yellow_tripdata_{year}-{month:02d}.csv.gz'
+    engine = create_engine(f'postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
 
-    engine = create_engine(f'postgresql+psycopg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}')
+    if file_type == 'parquet':
+        df= pd.read_parquet(
+            url
+        )
 
-    df_iter = pd.read_csv(
-        url,
-        dtype=dtype,
-        parse_dates=parse_dates,
-        iterator=True,
-        chunksize=chunksize
-    )
+        df.to_sql(name=target_table, con=engine, if_exists='replace')
+    elif file_type == 'csv':
+        df_iter = pd.read_csv(
+            url,
+            iterator=True,
+            chunksize=chunksize
+        )
 
-    first = True
-    for df_chunk in tqdm(df_iter):
-        if first:
-            df_chunk.head(0).to_sql(
-                name=target_table,
-                con=engine,
-                if_exists='replace'
-            )
-            first = False
-        df_chunk.to_sql(name=target_table, con=engine, if_exists='append')
+        first = True
+        for df_chunk in tqdm(df_iter):
+            if first:
+                df_chunk.head(0).to_sql(
+                    name=target_table,
+                    con=engine,
+                    if_exists='replace'
+                )
+                first = False
+            df_chunk.to_sql(name=target_table, con=engine, if_exists='append')
 
 if __name__ == '__main__':
     run()
